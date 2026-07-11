@@ -1,0 +1,60 @@
+[
+  {
+    "finding_id": "bandit-0001",
+    "finding_title": "[B404] Consider possible security implications associated with the subprocess...",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "LOW",
+          "cvss_score": "0.0",
+          "business_impact": "If exploited, an attacker could potentially execute arbitrary commands on the system.",
+          "confidence": "1"
+        },
+        "result": {
+          "severity": "LOW",
+          "cvss_score": 0.0,
+          "business_impact": "If exploited, an attacker could potentially execute arbitrary commands on the system.",
+          "confidence": 1.0
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 2
+  },
+  {
+    "finding_id": "bandit-0002",
+    "finding_title": "[B403] Consider possible security implications associated with pickle module.",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "business_impact": "If exploited, an attacker could potentially execute arbitrary code on the vulnerable application.",
+          "confidence": "0",
+          "severity": "LOW",
+          "cvss_score": "4.0"
+        },
+        "result": {
+          "severity": "LOW",
+          "cvss_score": 4.0,
+          "business_impact": "If exploited, an attacker could potentially execute arbitrary code on the vulnerable application.",
+          "confidence": 0.0
+        }
+      },
+      {
+        "tool": "escalate_to_human",
+        "arguments": "FALLBACK -- model failed to call this tool",
+        "result": {
+          "reason": "Escalation triggered (low confidence), but model failed to generate escalation details",
+          "context": "Classification: {\"severity\": \"LOW\", \"cvss_score\": 4.0, \"business_impact\": \"If exploited, an attacker could potentially execute arbitrary code on the vulnerable application.\", \"confidence\": 0.0}",
+          "urgency": "MEDIUM",
+          "escalated_at": "2026-07-10T05:14:13.484387+00:00"
+        }
+      }
+    ],
+    "escalated": true,
+    "iterations": 2
+  }
+]

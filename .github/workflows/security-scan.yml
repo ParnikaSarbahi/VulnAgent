@@ -1,0 +1,48 @@
+name: Security Scan
+
+# Runs on every push and every pull request targeting main, so vulnerable
+# code is caught before it merges, not just after.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  bandit-scan:
+    name: Bandit SAST Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Run Bandit (full report, always produced)
+        # --exit-zero: don't fail on Bandit's own exit code here -- we want
+        # the JSON report saved as an artifact regardless of findings, and
+        # we enforce our OWN pass/fail policy in the next step instead of
+        # relying on Bandit's default (which fails on ANY finding, including
+        # LOW severity -- too strict for a real project with known/accepted
+        # low-risk findings).
+        run: |
+          bandit -r . -f json -o bandit-report.json --exit-zero \
+            --exclude ./venv,./.venv,./node_modules
+
+      - name: Upload Bandit report as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
+      - name: Enforce severity policy (fail build on HIGH/CRITICAL findings)
+        run: |
+          python .github/scripts/check_bandit_severity.py bandit-report.json

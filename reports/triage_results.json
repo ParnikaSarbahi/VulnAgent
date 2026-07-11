@@ -1,0 +1,538 @@
+[
+  {
+    "finding_id": "bandit-0001",
+    "finding_title": "[B404] Consider possible security implications associated with the subprocess...",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "business_impact": "If exploited, an attacker could potentially execute arbitrary commands on the system.",
+          "confidence_level": "MEDIUM",
+          "severity": "LOW",
+          "cvss_score": "4.0"
+        },
+        "result": {
+          "severity": "LOW",
+          "cvss_score": 4.0,
+          "business_impact": "If exploited, an attacker could potentially execute arbitrary commands on the system.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "reference_links": "",
+          "fix_description": "Use the subprocess module with caution and validate its output to prevent potential security issues.",
+          "code_snippet": "import subprocess\nsubprocess.run(['ls', '-l'])"
+        },
+        "result": {
+          "fix_description": "Use the subprocess module with caution and validate its output to prevent potential security issues.",
+          "code_snippet": "import subprocess\nsubprocess.run(['ls', '-l'])",
+          "reference_links": []
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B404] Consider possible security implications associated with the subprocess module.",
+          "body_markdown": "Consider possible security implications associated with the subprocess module. File: .\\samples/vulnerable_app.py, line 9. CWE ID: 78. If exploited, an attacker could potentially execute arbitrary commands on the system. Severity: LOW (CVSS score: 4.0).",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B404] Consider possible security implications associated with the subprocess module.",
+          "body_markdown": "Consider possible security implications associated with the subprocess module. File: .\\samples/vulnerable_app.py, line 9. CWE ID: 78. If exploited, an attacker could potentially execute arbitrary commands on the system. Severity: LOW (CVSS score: 4.0).",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0002",
+    "finding_title": "[B403] Consider possible security implications associated with pickle module.",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "confidence_level": "MEDIUM",
+          "severity": "LOW",
+          "cvss_score": "4.0",
+          "business_impact": "If exploited, an attacker could inject malicious data into the application, potentially leading to data tampering or even code execution."
+        },
+        "result": {
+          "severity": "LOW",
+          "cvss_score": 4.0,
+          "business_impact": "If exploited, an attacker could inject malicious data into the application, potentially leading to data tampering or even code execution.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "fix_description": "Use the pickle module with the safe parameter set to True to prevent arbitrary code execution.",
+          "code_snippet": "import hashlib\nimport pickle\nimport os\n# Use pickle.load with safe=True to prevent arbitrary code execution\nwith open(\"data.pkl\", \"rb\") as f:\n    data = pickle.load(f, encoding=None, fix_imports=True)\n    # ...",
+          "reference_links": "https://cwe.mitre.org/data/standard/cwe-502.html, https://docs.python.org/3/library/pickle.html#load-from-memory"
+        },
+        "result": {
+          "fix_description": "Use the pickle module with the safe parameter set to True to prevent arbitrary code execution.",
+          "code_snippet": "import hashlib\nimport pickle\nimport os\n# Use pickle.load with safe=True to prevent arbitrary code execution\nwith open(\"data.pkl\", \"rb\") as f:\n    data = pickle.load(f, encoding=None, fix_imports=True)\n    # ...",
+          "reference_links": [
+            "https://cwe.mitre.org/data/standard/cwe-502.html",
+            "https://docs.python.org/3/library/pickle.html#load-from-memory"
+          ]
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B403] Consider possible security implications associated with pickle module.",
+          "body_markdown": "Consider possible security implications associated with pickle module. If exploited, an attacker could inject malicious data into the application, potentially leading to data tampering or even code execution. File: .\\samples\\vulnerable_app.py, line 11. CWE ID: 502",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B403] Consider possible security implications associated with pickle module.",
+          "body_markdown": "Consider possible security implications associated with pickle module. If exploited, an attacker could inject malicious data into the application, potentially leading to data tampering or even code execution. File: .\\samples\\vulnerable_app.py, line 11. CWE ID: 502",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0003",
+    "finding_title": "[B602] subprocess call with shell=True identified, security issue.",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "HIGH",
+          "cvss_score": "7.0",
+          "business_impact": "If exploited, an attacker could execute arbitrary commands on the system as the current user, potentially leading to unauthorized access or data tampering.",
+          "confidence_level": "HIGH"
+        },
+        "result": {
+          "severity": "HIGH",
+          "cvss_score": 7.0,
+          "business_impact": "If exploited, an attacker could execute arbitrary commands on the system as the current user, potentially leading to unauthorized access or data tampering.",
+          "confidence_level": "HIGH",
+          "confidence": 0.9
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "code_snippet": "import subprocess\nuser_input = input()\nsubprocess.run([\"/bin/sh\", \"-c\", user_input], stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n",
+          "reference_links": "https://docs.python.org/3/library/subprocess.html, https://cwe.mitre.org/data/standard/cwe-78.html",
+          "fix_description": "Use the subprocess module with the execve function instead of call, which is safer and more secure."
+        },
+        "result": {
+          "fix_description": "Use the subprocess module with the execve function instead of call, which is safer and more secure.",
+          "code_snippet": "import subprocess\nuser_input = input()\nsubprocess.run([\"/bin/sh\", \"-c\", user_input], stdout=subprocess.PIPE, stderr=subprocess.PIPE)\n",
+          "reference_links": [
+            "https://docs.python.org/3/library/subprocess.html",
+            "https://cwe.mitre.org/data/standard/cwe-78.html"
+          ]
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B602] subprocess call with shell=True identified, security issue.",
+          "body_markdown": "A subprocess call with shell=True has been identified in the code at \\.\"samples\\u0022/vulnerable_app.py line 17. This is a high-severity security issue (CWE-78) that could allow an attacker to execute arbitrary commands on the system as the current user, potentially leading to unauthorized access or data tampering. A suggested fix would be to use the subprocess module with the execve function instead of call.",
+          "priority": "P1",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B602] subprocess call with shell=True identified, security issue.",
+          "body_markdown": "A subprocess call with shell=True has been identified in the code at \\.\"samples\\u0022/vulnerable_app.py line 17. This is a high-severity security issue (CWE-78) that could allow an attacker to execute arbitrary commands on the system as the current user, potentially leading to unauthorized access or data tampering. A suggested fix would be to use the subprocess module with the execve function instead of call.",
+          "priority": "P1",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0004",
+    "finding_title": "[B324] Use of weak MD5 hash for security. Consider usedforsecurity=False",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "HIGH",
+          "cvss_score": "6.8",
+          "business_impact": "If exploited, an attacker could obtain the password without needing to compute it, leading to unauthorized access to sensitive data.",
+          "confidence_level": "MEDIUM"
+        },
+        "result": {
+          "severity": "HIGH",
+          "cvss_score": 6.8,
+          "business_impact": "If exploited, an attacker could obtain the password without needing to compute it, leading to unauthorized access to sensitive data.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "fix_description": "Use a stronger hash function like bcrypt or Argon2 instead of MD5 for password storage.",
+          "code_snippet": "return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()",
+          "reference_links": "https://owasp.org/www-project-password-storage/README.html, https://cwe.mitre.org/data/standard/standard.html#CWE-327"
+        },
+        "result": {
+          "fix_description": "Use a stronger hash function like bcrypt or Argon2 instead of MD5 for password storage.",
+          "code_snippet": "return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()",
+          "reference_links": [
+            "https://owasp.org/www-project-password-storage/README.html",
+            "https://cwe.mitre.org/data/standard/standard.html#CWE-327"
+          ]
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "priority": "P1",
+          "assignee_placeholder": "@security-team",
+          "title": "[B324] Use of weak MD5 hash for security. Consider usedforsecurity=False",
+          "body_markdown": "Use of weak MD5 hash for security. Consider usedforsecurity=False\nFile: .\\samples/vulnerable_app.py, line 22\nScanner\\u2019s own severity label: HIGH\nCWE ID: 327\nCode:\n21     # B303: MD5 is a broken hash, unsafe for passwords\n22     return hashlib.md5(password.encode()).hexdigest()\n23 \nIf exploited, an attacker could obtain the password without needing to compute it, leading to unauthorized access to sensitive data."
+        },
+        "result": {
+          "title": "[B324] Use of weak MD5 hash for security. Consider usedforsecurity=False",
+          "body_markdown": "Use of weak MD5 hash for security. Consider usedforsecurity=False\nFile: .\\samples/vulnerable_app.py, line 22\nScanner\\u2019s own severity label: HIGH\nCWE ID: 327\nCode:\n21     # B303: MD5 is a broken hash, unsafe for passwords\n22     return hashlib.md5(password.encode()).hexdigest()\n23 \nIf exploited, an attacker could obtain the password without needing to compute it, leading to unauthorized access to sensitive data.",
+          "priority": "P1",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0005",
+    "finding_title": "[B301] Pickle and modules that wrap it can be unsafe when used to deserialize...",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "MEDIUM",
+          "cvss_score": "4.0",
+          "business_impact": "If this vulnerability is exploited, an attacker could execute arbitrary code on the vulnerable application.",
+          "confidence_level": "MEDIUM"
+        },
+        "result": {
+          "severity": "MEDIUM",
+          "cvss_score": 4.0,
+          "business_impact": "If this vulnerability is exploited, an attacker could execute arbitrary code on the vulnerable application.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "reference_links": "https://docs.python.org/3/library/pickle.html#load-vs-safe-load",
+          "fix_description": "Use the safe_load method instead of load to deserialize untrusted data with pickle.",
+          "code_snippet": "import pickle\nwith open(file_path, \"rb\") as f:\n    return pickle.safe_load(f)"
+        },
+        "result": {
+          "fix_description": "Use the safe_load method instead of load to deserialize untrusted data with pickle.",
+          "code_snippet": "import pickle\nwith open(file_path, \"rb\") as f:\n    return pickle.safe_load(f)",
+          "reference_links": [
+            "https://docs.python.org/3/library/pickle.html#load-vs-safe-load"
+          ]
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B301] Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue.",
+          "body_markdown": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue. If this vulnerability is exploited, an attacker could execute arbitrary code on the vulnerable application. For more information, see https://docs.python.org/3/library/pickle.html#load-vs-safe-load. File: .\\samples\\vulnerable_app.py, line 28.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B301] Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue.",
+          "body_markdown": "Pickle and modules that wrap it can be unsafe when used to deserialize untrusted data, possible security issue. If this vulnerability is exploited, an attacker could execute arbitrary code on the vulnerable application. For more information, see https://docs.python.org/3/library/pickle.html#load-vs-safe-load. File: .\\samples\\vulnerable_app.py, line 28.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0006",
+    "finding_title": "[B105] Possible hardcoded password: 'SuperSecret123'",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "LOW",
+          "cvss_score": "4.0",
+          "business_impact": "If exploited, an attacker could access the application without authentication, potentially leading to unauthorized data access or modification.",
+          "confidence_level": "MEDIUM"
+        },
+        "result": {
+          "severity": "LOW",
+          "cvss_score": 4.0,
+          "business_impact": "If exploited, an attacker could access the application without authentication, potentially leading to unauthorized data access or modification.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "fix_description": "Replace hardcoded password with environment variable or secure storage.",
+          "code_snippet": "password = os.environ.get\\(\\&quot;PASSWORD\\&quot;\") or \\\"SuperSecret123\\\"",
+          "reference_links": "https://cwe.mitre.org/data/standard/ax-000012.html, https://docs.python.org/3/library/os.html#os.environ-get"
+        },
+        "result": {
+          "fix_description": "Replace hardcoded password with environment variable or secure storage.",
+          "code_snippet": "password = os.environ.get\\(\\&quot;PASSWORD\\&quot;\") or \\\"SuperSecret123\\\"",
+          "reference_links": [
+            "https://cwe.mitre.org/data/standard/ax-000012.html",
+            "https://docs.python.org/3/library/os.html#os.environ-get"
+          ]
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B105] Possible hardcoded password: ",
+          "body_markdown": "Possible hardcoded password: ', CWE ID: 259. This is a potential security vulnerability in the application as it stores sensitive information in plain text. Suggested fix: Replace hardcoded password with environment variable or secure storage.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B105] Possible hardcoded password: ",
+          "body_markdown": "Possible hardcoded password: ', CWE ID: 259. This is a potential security vulnerability in the application as it stores sensitive information in plain text. Suggested fix: Replace hardcoded password with environment variable or secure storage.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0007",
+    "finding_title": "[B608] Possible SQL injection vector through string-based query construction.",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "MEDIUM",
+          "cvss_score": "6.0",
+          "business_impact": "If exploited, an attacker could potentially extract sensitive user data or execute arbitrary SQL commands on the database.",
+          "confidence_level": "MEDIUM"
+        },
+        "result": {
+          "severity": "MEDIUM",
+          "cvss_score": 6.0,
+          "business_impact": "If exploited, an attacker could potentially extract sensitive user data or execute arbitrary SQL commands on the database.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "code_snippet": "query = \"SELECT * FROM users WHERE id = ?\"; cursor.execute(query, (user_id,))",
+          "reference_links": "",
+          "fix_description": "Use parameterized queries instead of string formatting to prevent SQL injection."
+        },
+        "result": {
+          "fix_description": "Use parameterized queries instead of string formatting to prevent SQL injection.",
+          "code_snippet": "query = \"SELECT * FROM users WHERE id = ?\"; cursor.execute(query, (user_id,))",
+          "reference_links": []
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "body_markdown": "Possible SQL injection vector through string-based query construction in vulnerable_app.py at line 39. CWE-89: SQL Built via String Formatting -> SQL Injection. Medium severity impact. If exploited, an attacker could potentially extract sensitive user data or execute arbitrary SQL commands on the database. Fix suggested: Use parameterized queries instead of string formatting to prevent SQL injection.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team",
+          "title": "[B608] Possible SQL injection vector through string-based query construction."
+        },
+        "result": {
+          "title": "[B608] Possible SQL injection vector through string-based query construction.",
+          "body_markdown": "Possible SQL injection vector through string-based query construction in vulnerable_app.py at line 39. CWE-89: SQL Built via String Formatting -> SQL Injection. Medium severity impact. If exploited, an attacker could potentially extract sensitive user data or execute arbitrary SQL commands on the database. Fix suggested: Use parameterized queries instead of string formatting to prevent SQL injection.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0008",
+    "finding_title": "[B108] Probable insecure usage of temp file/directory.",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "MEDIUM",
+          "cvss_score": "4.0",
+          "business_impact": "If exploited, an attacker could potentially access sensitive data stored in the /tmp directory.",
+          "confidence_level": "MEDIUM"
+        },
+        "result": {
+          "severity": "MEDIUM",
+          "cvss_score": 4.0,
+          "business_impact": "If exploited, an attacker could potentially access sensitive data stored in the /tmp directory.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": "FALLBACK -- model failed to call this tool",
+        "result": {
+          "fix_description": "Automated remediation generation failed for this finding. Manual review required.",
+          "code_snippet": "",
+          "reference_links": []
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B108] Probable insecure usage of temp file/directory.",
+          "body_markdown": "Probable insecure usage of temp file/directory. File: .\\samples/vulnerable_app.py, line 45. CWE ID: 377. Severity: MEDIUM (4.0). Business impact: If exploited, an attacker could potentially access sensitive data stored in the /tmp directory.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B108] Probable insecure usage of temp file/directory.",
+          "body_markdown": "Probable insecure usage of temp file/directory. File: .\\samples/vulnerable_app.py, line 45. CWE ID: 377. Severity: MEDIUM (4.0). Business impact: If exploited, an attacker could potentially access sensitive data stored in the /tmp directory.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0009",
+    "finding_title": "[B605] Starting a process with a shell: Seems safe, but may be changed in the...",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "severity": "LOW",
+          "cvss_score": "4.0",
+          "business_impact": "If exploited, an attacker could execute arbitrary commands as the application, potentially leading to unauthorized access or data tampering.",
+          "confidence_level": "MEDIUM"
+        },
+        "result": {
+          "severity": "LOW",
+          "cvss_score": 4.0,
+          "business_impact": "If exploited, an attacker could execute arbitrary commands as the application, potentially leading to unauthorized access or data tampering.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": "FALLBACK -- model failed to call this tool",
+        "result": {
+          "fix_description": "Automated remediation generation failed for this finding. Manual review required.",
+          "code_snippet": "",
+          "reference_links": []
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B605] Starting a process with a shell: Seems safe, but may be changed in the future, consider rewriting without shell",
+          "body_markdown": "Starting a process with a shell: Seems safe, but may be changed in the future, consider rewriting without shell. This code uses `os.system` to execute a command, which could potentially allow an attacker to inject malicious commands if the path is modified.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B605] Starting a process with a shell: Seems safe, but may be changed in the future, consider rewriting without shell",
+          "body_markdown": "Starting a process with a shell: Seems safe, but may be changed in the future, consider rewriting without shell. This code uses `os.system` to execute a command, which could potentially allow an attacker to inject malicious commands if the path is modified.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  },
+  {
+    "finding_id": "bandit-0010",
+    "finding_title": "[B607] Starting a process with a partial executable path",
+    "finding_source": "bandit",
+    "tool_calls": [
+      {
+        "tool": "classify_severity",
+        "arguments": {
+          "business_impact": "If an attacker can manipulate the value of DEBUG, they could potentially execute arbitrary commands on the system.",
+          "confidence_level": "MEDIUM",
+          "severity": "MEDIUM",
+          "cvss_score": "6.8"
+        },
+        "result": {
+          "severity": "MEDIUM",
+          "cvss_score": 6.8,
+          "business_impact": "If an attacker can manipulate the value of DEBUG, they could potentially execute arbitrary commands on the system.",
+          "confidence_level": "MEDIUM",
+          "confidence": 0.6
+        }
+      },
+      {
+        "tool": "suggest_remediation",
+        "arguments": {
+          "code_snippet": "if DEBUG:\n    os.system(\"/path/to/executable -debug mode is on\")\n",
+          "reference_links": "",
+          "fix_description": "Use the full path to the executable, rather than just the filename, to prevent potential command injection attacks."
+        },
+        "result": {
+          "fix_description": "Use the full path to the executable, rather than just the filename, to prevent potential command injection attacks.",
+          "code_snippet": "if DEBUG:\n    os.system(\"/path/to/executable -debug mode is on\")\n",
+          "reference_links": []
+        }
+      },
+      {
+        "tool": "generate_ticket",
+        "arguments": {
+          "title": "[B607] Starting a process with a partial executable path",
+          "body_markdown": "Starting a process with a partial executable path (CWE ID: 78) in vulnerable_app.py on line 52 can lead to command injection attacks if an attacker manipulates the value of DEBUG. This could potentially execute arbitrary commands on the system. Suggested fix: use the full path to the executable, rather than just the filename.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        },
+        "result": {
+          "title": "[B607] Starting a process with a partial executable path",
+          "body_markdown": "Starting a process with a partial executable path (CWE ID: 78) in vulnerable_app.py on line 52 can lead to command injection attacks if an attacker manipulates the value of DEBUG. This could potentially execute arbitrary commands on the system. Suggested fix: use the full path to the executable, rather than just the filename.",
+          "priority": "P2",
+          "assignee_placeholder": "@security-team"
+        }
+      }
+    ],
+    "escalated": false,
+    "iterations": 3
+  }
+]

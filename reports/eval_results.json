@@ -1,0 +1,196 @@
+{
+  "metrics": {
+    "total_findings": 20,
+    "exact_match_accuracy": 0.5,
+    "within_one_level_accuracy": 0.85,
+    "escalation_accuracy": 0.95,
+    "per_class_metrics": {
+      "LOW": {
+        "precision": 0.444,
+        "recall": 0.667,
+        "f1": 0.533,
+        "support": 6
+      },
+      "MEDIUM": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": null,
+        "support": 4
+      },
+      "HIGH": {
+        "precision": 0.75,
+        "recall": 0.429,
+        "f1": 0.545,
+        "support": 7
+      },
+      "CRITICAL": {
+        "precision": 0.75,
+        "recall": 1.0,
+        "f1": 0.857,
+        "support": 3
+      }
+    }
+  },
+  "predictions": [
+    {
+      "finding_id": "eval-0001",
+      "title": "[B404] subprocess module import",
+      "predicted": "LOW",
+      "ground_truth": "LOW",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0002",
+      "title": "[B403] pickle module import",
+      "predicted": "LOW",
+      "ground_truth": "LOW",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0003",
+      "title": "[B602] subprocess call with shell=True",
+      "predicted": "HIGH",
+      "ground_truth": "HIGH",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0004",
+      "title": "[B324] Weak MD5 hash for password",
+      "predicted": "HIGH",
+      "ground_truth": "HIGH",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0005",
+      "title": "[B301] Unsafe pickle.load on file input",
+      "predicted": "MEDIUM",
+      "ground_truth": "HIGH",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0006",
+      "title": "[B105] Hardcoded DB password",
+      "predicted": "LOW",
+      "ground_truth": "MEDIUM",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0007",
+      "title": "[B608] SQL injection via string formatting",
+      "predicted": "MEDIUM",
+      "ground_truth": "HIGH",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0008",
+      "title": "[B108] Hardcoded /tmp path",
+      "predicted": "MEDIUM",
+      "ground_truth": "LOW",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0009",
+      "title": "[B605] Process with shell behind debug flag",
+      "predicted": "LOW",
+      "ground_truth": "LOW",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0010",
+      "title": "[B607] Partial executable path",
+      "predicted": "LOW",
+      "ground_truth": "LOW",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0011",
+      "title": "Hardcoded AWS secret access key committed to repo",
+      "predicted": "CRITICAL",
+      "ground_truth": "CRITICAL",
+      "escalated": true,
+      "ground_truth_should_escalate": true
+    },
+    {
+      "finding_id": "eval-0012",
+      "title": "SSRF in URL-fetching endpoint",
+      "predicted": "HIGH",
+      "ground_truth": "HIGH",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0013",
+      "title": "Reflected XSS in search parameter",
+      "predicted": "HIGH",
+      "ground_truth": "MEDIUM",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0014",
+      "title": "Missing rate limiting on login endpoint",
+      "predicted": "LOW",
+      "ground_truth": "MEDIUM",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0015",
+      "title": "IDOR exposing other users' order data",
+      "predicted": "LOW",
+      "ground_truth": "HIGH",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0016",
+      "title": "Verbose error page exposes stack trace",
+      "predicted": "CRITICAL",
+      "ground_truth": "LOW",
+      "escalated": true,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0017",
+      "title": "Predictable session tokens from insecure random",
+      "predicted": "LOW",
+      "ground_truth": "HIGH",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0018",
+      "title": "XXE injection in XML parser",
+      "predicted": "CRITICAL",
+      "ground_truth": "CRITICAL",
+      "escalated": true,
+      "ground_truth_should_escalate": true
+    },
+    {
+      "finding_id": "eval-0019",
+      "title": "Permissive CORS with credentials",
+      "predicted": "LOW",
+      "ground_truth": "MEDIUM",
+      "escalated": false,
+      "ground_truth_should_escalate": false
+    },
+    {
+      "finding_id": "eval-0020",
+      "title": "Known-critical CVE in unpatched dependency",
+      "predicted": "CRITICAL",
+      "ground_truth": "CRITICAL",
+      "escalated": true,
+      "ground_truth_should_escalate": true
+    }
+  ]
+}
