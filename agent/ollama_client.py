@@ -15,7 +15,13 @@ TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
 
 
 def _groq_chat(messages, tools=None, stream=False):
-    """Call Groq's OpenAI-compatible Chat Completions API."""
+    """Call Groq's OpenAI-compatible Chat Completions API.
+
+    VulnAgent sends one tool definition at a time. Groq's GPT-OSS 20B does
+    not support parallel tool use, so disable parallel calls explicitly.
+    When a single tool is supplied, force that exact function so the
+    deterministic Python orchestration receives the expected tool call.
+    """
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set")
@@ -28,6 +34,12 @@ def _groq_chat(messages, tools=None, stream=False):
     }
     if tools:
         payload["tools"] = tools
+        payload["parallel_tool_calls"] = False
+        if len(tools) == 1:
+            payload["tool_choice"] = {
+                "type": "function",
+                "function": {"name": tools[0]["function"]["name"]},
+            }
 
     response = requests.post(
         f"{GROQ_BASE_URL}/chat/completions",
@@ -41,7 +53,6 @@ def _groq_chat(messages, tools=None, stream=False):
     response.raise_for_status()
     data = response.json()
 
-    # Normalize Groq's OpenAI-compatible response to the shape used by agent_core.
     message = data["choices"][0]["message"]
     return {"message": message, "raw_response": data}
 
