@@ -54,7 +54,7 @@ def suggest_remediation(fix_description, code_snippet, reference_links):
 
 
 def generate_ticket(title, body_markdown, priority, assignee_placeholder):
-    """Create a draft and optionally file a GitHub issue or PR comment."""
+    """Create a ticket draft and optionally file a GitHub issue or PR comment."""
     result = {
         "title": title,
         "body_markdown": body_markdown,
@@ -70,8 +70,7 @@ def generate_ticket(title, body_markdown, priority, assignee_placeholder):
         else:
             try:
                 labels = ["security", priority.lower()]
-                issue_result = GitHubClient().create_issue(repository, title, body_markdown, labels=labels)
-                result.update(issue_result)
+                result.update(GitHubClient().create_issue(repository, title, body_markdown, labels=labels))
             except Exception as exc:
                 result["error"] = str(exc)
 
@@ -84,11 +83,9 @@ def generate_ticket(title, body_markdown, priority, assignee_placeholder):
             result["pr_comment_error"] = "GITHUB_PR_NUMBER is not configured"
         else:
             try:
-                comment = build_pr_comment(
-                    [{"finding_title": title, "finding_source": "VulnAgent", "tool_calls": [], "escalated": False}],
-                    int(pr_number),
-                )
-                result["pr_comment"] = GitHubClient().add_pr_comment(repository, int(pr_number), comment)
+                parsed_pr_number = int(pr_number)
+                comment = build_pr_comment(title, body_markdown, priority, parsed_pr_number)
+                result["pr_comment"] = GitHubClient().add_pr_comment(repository, parsed_pr_number, comment)
             except (TypeError, ValueError) as exc:
                 result["pr_comment_error"] = f"Invalid GITHUB_PR_NUMBER: {exc}"
             except Exception as exc:
