@@ -11,6 +11,7 @@ import os
 from datetime import datetime, timezone
 
 from integrations.github_client import GitHubClient
+from integrations.pr_comment import build_pr_comment
 
 ESCALATIONS_LOG = os.path.join(os.path.dirname(__file__), "..", "reports", "escalations_log.jsonl")
 
@@ -53,7 +54,7 @@ def suggest_remediation(fix_description, code_snippet, reference_links):
 
 
 def generate_ticket(title, body_markdown, priority, assignee_placeholder):
-    """Create a draft by default; optionally file it as a real GitHub issue."""
+    """Create a draft and optionally file a GitHub issue or PR comment."""
     result = {
         "title": title,
         "body_markdown": body_markdown,
@@ -62,25 +63,36 @@ def generate_ticket(title, body_markdown, priority, assignee_placeholder):
         "created": False,
     }
 
-    # Safety boundary: local development remains draft-only unless explicitly
-    # enabled. Never create external issues merely because the LLM called a tool.
-    if os.getenv("VULNAGENT_CREATE_GITHUB_ISSUES", "false").lower() != "true":
-        return result
+    if os.getenv("VULNAGENT_CREATE_GITHUB_ISSUES", "false").lower() == "true":
+        repository = os.getenv("GITHUB_REPOSITORY")
+        if not repository:
+            result["error"] = "GITHUB_REPOSITORY is not configured"
+        else:
+            try:
+                labels = ["security", priority.lower()]
+                issue_result = GitHubClient().create_issue(repository, title, body_markdown, labels=labels)
+                result.update(issue_result)
+            except Exception as exc:
+                result["error"] = str(exc)
 
-    repository = os.getenv("GITHUB_REPOSITORY")
-    if not repository:
-        result["error"] = "GITHUB_REPOSITORY is not configured"
-        return result
-
-    try:
-        labels = ["security", priority.lower()]
-        created = GitHubClient().create_issue(repository, title, body_markdown, labels=labels)
-        result.update(created)
-        result["created"] = True
-    except Exception as exc:
-        # Ticket creation is an external side effect. A failure must not make
-        # the entire triage run disappear; preserve the draft and error.
-        result["error"] = str(exc)
+    if os.getenv("VULNAGENT_COMMENT_ON_PR", "false").lower() == "true":
+        repository = os.getenv("GITHUB_REPOSITORY")
+        pr_number = os.getenv("GITHUB_PR_NUMBER")
+        if not repository:
+            result["pr_comment_error"] = "GITHUB_REPOSITORY is not configured"
+        elif not pr_number:
+            result["pr_comment_error"] = "GITHUB_PR_NUMBER is not configured"
+        else:
+            try:
+                comment = build_pr_comment(
+                    [{"finding_title": title, "finding_source": "VulnAgent", "tool_calls": [], "escalated": False}],
+                    int(pr_number),
+                )
+                result["pr_comment"] = GitHubClient().add_pr_comment(repository, int(pr_number), comment)
+            except (TypeError, ValueError) as exc:
+                result["pr_comment_error"] = f"Invalid GITHUB_PR_NUMBER: {exc}"
+            except Exception as exc:
+                result["pr_comment_error"] = str(exc)
 
     return result
 
