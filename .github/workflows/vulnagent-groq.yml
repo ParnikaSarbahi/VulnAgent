@@ -2,6 +2,9 @@ name: VulnAgent Groq End-to-End
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - phase-groq-github-runtime
 
 jobs:
   end-to-end:
