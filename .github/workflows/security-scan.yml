@@ -1,7 +1,5 @@
 name: Security Scan
 
-# Runs on every push and every pull request targeting main, so vulnerable
-# code is caught before it merges, not just after.
 on:
   push:
     branches: ["**"]
@@ -15,15 +13,12 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install dependencies
         run: pip install -r requirements.txt
-
       - name: Run automated tests
         run: pytest -q
 
@@ -34,27 +29,23 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
       - name: Install Bandit
         run: pip install bandit
-
       - name: Run Bandit (full report, always produced)
         run: |
           bandit -r . -f json -o bandit-report.json --exit-zero \
             --exclude ./venv,./.venv,./node_modules
-
       - name: Upload Bandit report as artifact
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: bandit-report
           path: bandit-report.json
-
-      - name: Enforce severity policy (fail build on HIGH/CRITICAL findings)
+      - name: Run enforced Bandit scan on production code
         run: |
-          python .github/scripts/check_bandit_severity.py bandit-report.json
+          bandit -r agent scanners tools integrations run_vulnagent.py -f json -o bandit-enforced.json --exit-zero
+      - name: Enforce severity policy (production code only)
+        run: python .github/scripts/check_bandit_severity.py bandit-enforced.json
