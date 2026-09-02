@@ -1,0 +1,19 @@
+{
+  "Results": [
+    {
+      "Target": "python:3.11",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2024-12345",
+          "PkgName": "example-lib",
+          "InstalledVersion": "1.0.0",
+          "FixedVersion": "1.0.2",
+          "Severity": "HIGH",
+          "Description": "A crafted input can trigger unsafe processing.",
+          "CweIDs": ["CWE-79"],
+          "PrimaryURL": "https://example.com/CVE-2024-12345"
+        }
+      ]
+    }
+  ]
+}
