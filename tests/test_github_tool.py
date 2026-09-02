@@ -1,5 +1,3 @@
-import os
-
 from tools import tool_implementations as tools
 
 
@@ -16,7 +14,6 @@ def test_duplicate_issue_preserves_created_false(monkeypatch):
             return {"created": False, "duplicate": True, "issue_number": 7}
 
     monkeypatch.setattr(tools, "GitHubClient", FakeClient)
-
     result = _ticket()
     assert result["created"] is False
     assert result["duplicate"] is True
@@ -41,11 +38,12 @@ def test_pr_comment_is_posted(monkeypatch):
         def add_pr_comment(self, repository, pr_number, comment):
             assert repository == "ParnikaSarbahi/VulnAgent"
             assert pr_number == 42
-            assert "VulnAgent Security Review" in comment
+            assert "VulnAgent Security Finding" in comment
+            assert "Test finding" in comment
+            assert "HIGH" in comment
             return {"commented": True, "pr_number": pr_number}
 
     monkeypatch.setattr(tools, "GitHubClient", FakeClient)
-
     result = _ticket()
     assert result["pr_comment"]["commented"] is True
     assert result["pr_comment"]["pr_number"] == 42
