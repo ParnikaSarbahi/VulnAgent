@@ -10,15 +10,19 @@ jobs:
   vulnagent-tests:
     name: VulnAgent Integration Tests
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install dependencies
         run: pip install -r requirements.txt
+
       - name: Run automated tests
         run: pytest -q
 
@@ -26,26 +30,37 @@ jobs:
     name: Bandit SAST Scan
     runs-on: ubuntu-latest
     needs: vulnagent-tests
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Install Bandit
         run: pip install bandit
+
       - name: Run Bandit (full report, always produced)
         run: |
           bandit -r . -f json -o bandit-report.json --exit-zero \
             --exclude ./venv,./.venv,./node_modules
-      - name: Upload Bandit report as artifact
+
+      - name: Upload Bandit report
         uses: actions/upload-artifact@v4
         with:
           name: bandit-report
           path: bandit-report.json
+
+      # The sample vulnerable application is intentionally insecure so the
+      # agent has real findings to ingest. Do not treat that demo fixture as
+      # production code when deciding whether this branch may merge.
       - name: Run enforced Bandit scan on production code
         run: |
-          bandit -r agent scanners tools integrations run_vulnagent.py -f json -o bandit-enforced.json --exit-zero
+          bandit -r agent scanners tools integrations run_vulnagent.py \
+            -f json -o bandit-enforced.json --exit-zero
+
       - name: Enforce severity policy (production code only)
         run: python .github/scripts/check_bandit_severity.py bandit-enforced.json
