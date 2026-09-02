@@ -6,17 +6,13 @@ The Python layer controls workflow order while the local LLM supplies the
 security assessment and remediation content.
 """
 
-import sys
-import os
 import json
+import os
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "scanners"))
-
-from ollama_client import chat
-from tool_definitions import TOOLS
-from tool_implementations import TOOL_DISPATCH
-from deduplicator import deduplicate_findings
+from agent.ollama_client import chat
+from scanners.deduplicator import deduplicate_findings
+from tools.tool_definitions import TOOLS
+from tools.tool_implementations import TOOL_DISPATCH
 
 MAX_ITERATIONS = 6
 CONFIDENCE_THRESHOLD = 0.5
@@ -165,6 +161,6 @@ def triage_all(findings, save_incrementally_to=None):
             directory = os.path.dirname(save_incrementally_to)
             if directory:
                 os.makedirs(directory, exist_ok=True)
-            with open(save_incrementally_to, "w") as f:
+            with open(save_incrementally_to, "w", encoding="utf-8") as f:
                 json.dump(results, f, indent=2)
     return results
