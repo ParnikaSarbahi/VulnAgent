@@ -22,8 +22,13 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Bandit
-        run: pip install bandit
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Run VulnAgent dry-run integration tests
+        # The test suite mocks the LLM and keeps GitHub issue/PR side effects
+        # disabled. This validates the complete orchestration path safely.
+        run: pytest -q tests/test_pipeline_integration.py tests/test_deduplicator.py tests/test_scanner_parsers.py
 
       - name: Run Bandit (full report, always produced)
         # --exit-zero: don't fail on Bandit's own exit code here -- we want
