@@ -9,10 +9,9 @@ on:
     branches: [main]
 
 jobs:
-  bandit-scan:
-    name: Bandit SAST Scan
+  vulnagent-tests:
+    name: VulnAgent Integration Tests
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -23,20 +22,28 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pytest
+        run: pip install -r requirements.txt
 
-      - name: Run VulnAgent dry-run integration tests
-        # The test suite mocks the LLM and keeps GitHub issue/PR side effects
-        # disabled. This validates the complete orchestration path safely.
-        run: pytest -q tests/test_pipeline_integration.py tests/test_deduplicator.py tests/test_scanner_parsers.py
+      - name: Run automated tests
+        run: pytest -q
+
+  bandit-scan:
+    name: Bandit SAST Scan
+    runs-on: ubuntu-latest
+    needs: vulnagent-tests
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Bandit
+        run: pip install bandit
 
       - name: Run Bandit (full report, always produced)
-        # --exit-zero: don't fail on Bandit's own exit code here -- we want
-        # the JSON report saved as an artifact regardless of findings, and
-        # we enforce our OWN pass/fail policy in the next step instead of
-        # relying on Bandit's default (which fails on ANY finding, including
-        # LOW severity -- too strict for a real project with known/accepted
-        # low-risk findings).
         run: |
           bandit -r . -f json -o bandit-report.json --exit-zero \
             --exclude ./venv,./.venv,./node_modules
