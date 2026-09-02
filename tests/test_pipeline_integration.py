@@ -18,50 +18,43 @@ def _finding(raw_severity="HIGH"):
     )
 
 
-def _fake_chat_factory():
+def _tool_response(arguments):
+    return {
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [{"function": {"arguments": arguments}}],
+        }
+    }
+
+
+def test_full_auto_triage_flow(monkeypatch, tmp_path):
     calls = []
+    responses = {
+        "classify_severity": {
+            "severity": "HIGH",
+            "cvss_score": 8.1,
+            "business_impact": "Remote command execution may compromise the application host.",
+            "confidence_level": "HIGH",
+        },
+        "suggest_remediation": {
+            "fix_description": "Avoid shell=True and pass arguments as a list with shell=False.",
+            "code_snippet": "subprocess.run([\"safe-command\", arg], check=True)",
+            "reference_links": [],
+        },
+        "generate_ticket": {
+            "title": "[HIGH] Avoid shell=True command execution",
+            "body_markdown": "Replace shell=True with a safe argument list.",
+            "priority": "P1",
+            "assignee_placeholder": "@security-team",
+        },
+    }
 
     def fake_chat(messages, tools=None):
         tool_name = tools[0]["function"]["name"]
         calls.append(tool_name)
-        arguments = {
-            "classify_severity": {
-                "severity": "HIGH",
-                "cvss_score": 8.1,
-                "business_impact": "Remote command execution may compromise the application host.",
-                "confidence_level": "HIGH",
-            },
-            "suggest_remediation": {
-                "fix_description": "Avoid shell=True and pass arguments as a list with shell=False.",
-                "code_snippet": "subprocess.run([\"safe-command\", arg], check=True)",
-                "reference_links": ["https://docs.python.org/3/library/subprocess.html"],
-            },
-            "generate_ticket": {
-                "title": "[HIGH] Avoid shell=True command execution",
-                "body_markdown": "Replace shell=True with a safe argument list.",
-                "priority": "P1",
-                "assignee_placeholder": "@security-team",
-            },
-            "escalate_to_human": {
-                "reason": "Manual review requested.",
-                "context": "Security finding requires review.",
-                "urgency": "HIGH",
-            },
-        }[tool_name]
-        return {
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [{"function": {"arguments": arguments}}],
-            }
-        }
+        return _tool_response(responses[tool_name])
 
-    fake_chat.calls = calls
-    return fake_chat
-
-
-def test_full_auto_triage_flow(monkeypatch, tmp_path):
-    fake_chat = _fake_chat_factory()
     monkeypatch.setattr(agent_core, "chat", fake_chat)
     monkeypatch.setenv("VULNAGENT_CREATE_GITHUB_ISSUES", "false")
     monkeypatch.setenv("VULNAGENT_COMMENT_ON_PR", "false")
@@ -79,51 +72,38 @@ def test_full_auto_triage_flow(monkeypatch, tmp_path):
         "generate_ticket",
     ]
     assert result["tool_calls"][-1]["result"]["created"] is False
-    assert fake_chat.calls == [
-        "classify_severity",
-        "suggest_remediation",
-        "generate_ticket",
-    ]
+    assert calls == ["classify_severity", "suggest_remediation", "generate_ticket"]
     assert json.loads(output.read_text())[0]["finding_id"] == "bandit-0001"
 
 
 def test_critical_finding_escalates_without_remediation(monkeypatch):
-    fake_chat = _fake_chat_factory()
-    monkeypatch.setattr(agent_core, "chat", fake_chat)
-    monkeypatch.setenv("VULNAGENT_CREATE_GITHUB_ISSUES", "false")
+    calls = []
 
     def critical_chat(messages, tools=None):
         tool_name = tools[0]["function"]["name"]
-        if tool_name == "classify_severity":
-            return {
-                "message": {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [{"function": {"arguments": {
-                        "severity": "CRITICAL",
-                        "cvss_score": 9.8,
-                        "business_impact": "Full compromise is plausible.",
-                        "confidence_level": "HIGH",
-                    }}}],
-                }
+        calls.append(tool_name)
+        arguments = (
+            {
+                "severity": "CRITICAL",
+                "cvss_score": 9.8,
+                "business_impact": "Full compromise is plausible.",
+                "confidence_level": "HIGH",
             }
-        return {
-            "message": {
-                "role": "assistant",
-                "content": "",
-                "tool_calls": [{"function": {"arguments": {
-                    "reason": "Critical severity requires human review.",
-                    "context": "Classification is CRITICAL.",
-                    "urgency": "HIGH",
-                }}}],
+            if tool_name == "classify_severity"
+            else {
+                "reason": "Critical severity requires human review.",
+                "context": "Classification is CRITICAL.",
+                "urgency": "HIGH",
             }
-        }
+        )
+        return _tool_response(arguments)
 
     monkeypatch.setattr(agent_core, "chat", critical_chat)
-    result = agent_core.triage_finding(_finding())[0:0] if False else agent_core.triage_finding(_finding())[0]
+    result = agent_core.triage_finding(_finding())
 
     assert result["escalated"] is True
     assert [call["tool"] for call in result["tool_calls"]] == [
         "classify_severity",
         "escalate_to_human",
     ]
+    assert calls == ["classify_severity", "escalate_to_human"]
