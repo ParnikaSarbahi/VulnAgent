@@ -1,6 +1,6 @@
 # VulnAgent
 
-**An autonomous, LLM-powered vulnerability triage agent.** VulnAgent ingests output from security scanners (Bandit SAST, Trivy container scanning, simulated OWASP ZAP DAST), uses a locally-hosted LLM with tool-use/function calling to classify severity, suggest fixes, and draft GitHub issues — and escalates to a human whenever severity is critical or model confidence is low. No manual triage per finding required.
+**An autonomous, LLM-powered vulnerability triage agent.** VulnAgent ingests output from security scanners (Bandit SAST, Trivy vulnerability scanning, and OWASP ZAP DAST), normalizes findings into one schema, deduplicates them, uses a locally-hosted LLM with tool-use/function calling to classify severity, suggest fixes, and draft GitHub issues — and escalates to a human whenever severity is critical or model confidence is low.
 
 Built end-to-end with a **free, local LLM (Ollama)** rather than a paid API, to demonstrate the agent architecture itself is the point — not access to a particular vendor's model.
 
@@ -15,49 +15,55 @@ Security teams are flooded with scanner findings across multiple tools. Manually
 ## Architecture
 
 ```
- Scanner Output (Bandit / Trivy / simulated OWASP ZAP)
+ Scanner Execution (Bandit / Trivy / OWASP ZAP)
               │
               ▼
       ┌───────────────┐
       │  Parser Layer  │  scanners/ -- normalizes each tool's raw
-      │                │  output into one common Finding schema
+      │                │  JSON output into one common Finding schema
       └───────┬───────┘
               ▼
       ┌───────────────┐
-      │  Agent Core    │  agent/ -- deterministic, code-controlled
-      │  (tool-use)    │  triage sequence: classify -> branch ->
-      │                │  remediate+ticket, OR escalate
+      │ Deduplication  │  cross-scanner fingerprinting prevents the
+      │                │  same vulnerability being triaged repeatedly
+      └───────┬───────┘
+              ▼
+      ┌───────────────┐
+      │  Agent Core    │  deterministic, code-controlled triage:
+      │  (tool-use)    │  classify -> branch -> remediate+ticket,
+      │                │  OR escalate
       └───────┬───────┘
               ▼
    ┌──────────┴──────────┐
-   │                      │
-   ▼                      ▼
+   │                     │
+   ▼                     ▼
 Auto-Triaged          Escalated to Human
-(severity + fix        (confidence below
- + ticket draft)         threshold, OR
-                          severity = CRITICAL)
+(severity + fix        (low confidence,
+ + ticket draft)         or CRITICAL)
               │
               ▼
       ┌───────────────┐
-      │ Eval Layer     │  eval/ -- 20 labelled findings, measures
-      │                │  triage accuracy against ground truth
-      └───────┬───────┘
-              ▼
-      ┌───────────────┐
-      │ Reports Layer  │  reports/ -- Markdown + JSON stakeholder
-      │                │  reports, severity distribution chart
-      └───────────────┘
-              │
-              ▼
-      ┌───────────────┐
-      │ CI/CD          │  .github/ -- Bandit runs on every push,
-      │                │  fails the build on HIGH-severity findings
+      │ Eval + Reports │
       └───────────────┘
 ```
 
 ### Why code, not the LLM, controls the sequence
 
-An early version let the model freely decide which tool to call next across a multi-turn conversation. In practice, small local models lose track of multi-step plans — they'd classify a finding correctly, then just stop instead of continuing to remediation. The fix: **Python code enforces the triage sequence** (classify → branch on severity/confidence → remediate+ticket or escalate); the LLM only supplies reasoning and content *within* each forced step. This is a more robust pattern generally, not just a workaround for a small model.
+An early version let the model freely decide which tool to call next across a multi-turn conversation. In practice, small local models lose track of multi-step plans — they'd classify a finding correctly, then just stop instead of continuing to remediation. The fix: **Python code enforces the triage sequence** (classify → branch on severity/confidence → remediate+ticket or escalate); the LLM only supplies reasoning and content *within* each forced step.
+
+## Scanner integration
+
+Each scanner has two responsibilities: execution and normalization.
+
+| Scanner | Execution | Parser | Output |
+|---|---|---|---|
+| Bandit | `bandit -r ... -f json` | `scanners/bandit_parser.py` | `Finding` |
+| Trivy | `trivy fs/image/rootfs/repo --format json` | `scanners/trivy_parser.py` | `Finding` |
+| OWASP ZAP | `zap-baseline.py -t ... -J ...` | `scanners/zap_parser.py` | `Finding` |
+
+`scanners/scanner_runner.py` executes only explicitly supplied targets and uses argument lists rather than shell commands. `scanners/scan_loader.py` runs the requested scanners, combines their normalized findings, and applies the deduplication layer.
+
+The scanner binaries are intentionally **not bundled** with the Python package; they must be installed in the developer or CI environment. ZAP also requires an HTTP(S) application target.
 
 ## The four agent tools
 
@@ -70,11 +76,11 @@ An early version let the model freely decide which tool to call next across a mu
 
 ## Tech stack
 
-Python · **Ollama** (local LLM runtime, tool-use/function calling) · **Bandit** (SAST) · Trivy (container scanning) · simulated OWASP ZAP (DAST) · **pydantic** (schema validation) · **matplotlib** (reporting) · **GitHub Actions** (CI/CD)
+Python · **Ollama** (local LLM runtime, tool-use/function calling) · **Bandit** (SAST) · **Trivy** · **OWASP ZAP** · **pydantic** (schema validation) · **matplotlib** (reporting) · **GitHub Actions** (CI/CD)
 
 ## Setup
 
-**Prerequisites:** Python 3.10+, [Ollama](https://ollama.com) installed with a tool-calling-capable model pulled.
+**Prerequisites:** Python 3.10+, [Ollama](https://ollama.com) installed with a tool-calling-capable model pulled. For real multi-scanner execution, also install Bandit, Trivy, and OWASP ZAP/ZAP baseline scan tooling.
 
 ```bash
 git clone https://github.com/YOUR-USERNAME/VulnAgent.git
@@ -82,30 +88,48 @@ cd VulnAgent
 python3 -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env
 ```
 
-Edit `.env` and set `OLLAMA_MODEL` to match a model you've pulled (`ollama list`). This project was developed and evaluated against `llama3.2:3b` for reliable tool-calling on modest hardware.
+Edit your Ollama configuration as needed and verify connectivity:
 
-**Verify connectivity:**
 ```bash
 python agent/ollama_client.py
 ```
 
+## Running scanner ingestion
+
+The runner can execute any subset of scanners. For example:
+
+```python
+from scanners.scan_loader import collect_findings
+
+findings = collect_findings(
+    bandit_target="samples/vulnerable_app.py",
+    trivy_target=".",
+    trivy_target_type="fs",
+    zap_target_url="http://localhost:8000",
+    output_dir="reports/scans",
+)
+```
+
+Only provide `zap_target_url` when an application is actually running at that URL. For a container image, use `trivy_target_type="image"` and pass the image name as `trivy_target`.
+
+For parser-only testing, the repository includes representative reports in `samples/trivy_raw_output.json` and `samples/zap_raw_output.json`, so tests do not require scanner binaries.
+
 ## Running the full pipeline
 
 ```bash
-# 1. Scan the sample vulnerable app with Bandit
-bandit -f json -o samples/bandit_raw_output.json samples/vulnerable_app.py
+# 1. Generate Bandit output
+bandit -r samples/vulnerable_app.py -f json -o samples/bandit_raw_output.json
 
-# 2. Run the full triage agent over all findings
+# 2. Run the full triage agent over normalized findings
 cd agent && python agent_core.py && cd ..
 
-# 3. Generate stakeholder reports (Markdown + JSON + chart)
+# 3. Generate stakeholder reports
 cd reports && python generate_report.py && cd ..
 
-# 4. (Optional) Run the accuracy eval against 20 labelled findings
-cd eval && python run_eval.py && cd ..
+# 4. Run the labelled evaluation
+cd evals && python run_eval.py && cd ..
 ```
 
 ## Sample output
@@ -118,7 +142,7 @@ From a real run against `samples/vulnerable_app.py` (10 real Bandit findings):
 > - **Recommended fix:** *"Use the subprocess module with the execve function instead of call, which is safer and more secure."*
 > - **Ticket priority:** P1
 
-Full output: [`reports/stakeholder_report.md`](reports/stakeholder_report.md) · [`reports/triage_results.json`](reports/triage_results.json) · [`reports/severity_chart.png`](reports/severity_chart.png)
+Full output: `reports/stakeholder_report.md` · `reports/triage_results.json` · `reports/severity_chart.png`
 
 ## Eval results
 
@@ -132,32 +156,34 @@ Measured against 20 hand-labelled findings (10 real Bandit results + 10 syntheti
 | CRITICAL-severity recall | 100% (3/3 caught) |
 | CRITICAL-severity precision | 75% |
 
-Full breakdown, including per-class precision/recall/F1: [`reports/eval_results.json`](reports/eval_results.json).
+Full breakdown, including per-class precision/recall/F1: `reports/eval_results.json`.
 
-**What this shows, honestly:** the agent reliably catches genuinely critical findings (100% recall on CRITICAL) and rarely misses severity by more than one level (85%), but exact severity calibration on abstract/novel scenarios (vs. concrete code it can directly reason about) remains the weakest point — a real, documented limitation rather than a claimed 100% accuracy that wouldn't be credible anyway. Adding few-shot calibration examples to the system prompt measurably improved CRITICAL recall (from 33% to 100%) at a small cost to precision — evidence that this is at least partly a prompting/calibration problem, not purely a model-capability ceiling.
+**What this shows, honestly:** the agent reliably catches genuinely critical findings (100% recall on CRITICAL) and rarely misses severity by more than one level (85%), but exact severity calibration on abstract/novel scenarios remains the weakest point. This is a documented limitation rather than a claimed 100% accuracy.
 
 ## CI/CD
 
-`.github/workflows/security-scan.yml` runs Bandit on every push and PR, uploads the full JSON report as a build artifact, and **fails the build on any HIGH-severity finding** (LOW/MEDIUM are reported but non-blocking, matching realistic team policy — blocking on every minor finding creates alert fatigue). See `.github/scripts/check_bandit_severity.py` for the enforcement logic.
+`.github/workflows/security-scan.yml` currently runs Bandit on every push and PR, uploads the full JSON report as a build artifact, and **fails the build on HIGH-severity findings**. Full Trivy/ZAP CI execution should be added once CI has a defined container target and deployed test web application; ZAP cannot be meaningfully run without an HTTP(S) target.
 
 ## Known limitations
 
-- Small local models are unreliable at raw numeric self-confidence (fixed by eliciting a LOW/MEDIUM/HIGH label instead and mapping it to a number in code — see `tools/tool_implementations.py`).
-- Multi-turn tool-use degrades once conversation history includes prior tool calls; fixed with explicit, single-step instructions rather than relying on the model to infer next steps (see `agent/agent_core.py`, `_call_single_tool`).
-- Severity calibration on abstract/novel findings (no concrete code to reason about) is the primary remaining accuracy gap — see Eval Results above.
-- Trivy and OWASP ZAP integration are simulated/stubbed for this project's scope; the parser layer is designed to make wiring in real scanner output a matter of adding one more parser, not restructuring the pipeline.
+- Small local models are unreliable at raw numeric self-confidence; the project therefore uses LOW/MEDIUM/HIGH confidence labels and maps them in code.
+- Multi-turn tool-use can degrade with small local models; Python enforces the sequence instead of relying on model planning.
+- Severity calibration on abstract/novel findings remains the primary evaluation gap.
+- GitHub ticket generation currently produces a structured **ticket draft**, not a live GitHub Issue; live GitHub integration is Phase 3.
+- Scanner execution depends on locally/CI-installed Bandit, Trivy, and ZAP binaries.
 
 ## Project structure
 
 ```
 VulnAgent/
-├── agent/            # Core agent loop + Ollama client
-├── scanners/           # Bandit output parser + common Finding schema
+├── agent/              # Core agent loop + Ollama client
+├── scanners/           # Scanner runners, parsers, schema + deduplication
 ├── tools/              # 4 tool definitions, implementations, diagnostics
-├── eval/                # 20-finding labelled eval dataset + scorer
-├── reports/             # Report generator + real generated output
-├── samples/             # Sample vulnerable app + real Bandit scan output
-├── .github/              # CI/CD workflow + severity gate script
+├── evals/              # Labelled eval dataset + scorer
+├── reports/            # Report generator + generated output
+├── samples/            # Vulnerable app + scanner JSON fixtures
+├── tests/              # Unit tests for scanner/deduplication components
+├── .github/             # CI/CD workflow + severity gate script
 └── requirements.txt
 ```
 
