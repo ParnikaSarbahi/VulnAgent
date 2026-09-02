@@ -1,0 +1,23 @@
+{
+  "site": [
+    {
+      "@name": "https://example.test",
+      "alerts": [
+        {
+          "name": "Cross Site Scripting (Reflected)",
+          "riskdesc": "High (Medium)",
+          "desc": "User-controlled input is reflected into the response.",
+          "solution": "Encode untrusted output before rendering it.",
+          "cweid": "79",
+          "reference": "https://cwe.mitre.org/data/definitions/79.html",
+          "instances": [
+            {
+              "uri": "https://example.test/search",
+              "param": "q"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
