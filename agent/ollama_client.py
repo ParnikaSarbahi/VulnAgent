@@ -1,73 +1,86 @@
-"""
-ollama_client.py
-
-Thin wrapper around Ollama's local HTTP API. Every other part of VulnAgent
-(tool-use, agent loop) will call through this module instead of hitting
-`requests` directly — that way, if we ever swap models or endpoints, we
-only change one file.
-
-Ollama exposes an OpenAI-style chat endpoint at:
-    POST http://localhost:11434/api/chat
-
-We send it a list of messages (and later, tool definitions) and get back
-a JSON response containing the model's reply.
-"""
+"""LLM client with Groq API support and optional Ollama fallback."""
 
 import os
 import requests
 from dotenv import load_dotenv
 
-# Load variables from .env into the environment
 load_dotenv()
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:32b")
-OLLAMA_TEMPERATURE = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
-OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
+TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
+TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
 
 
-def chat(messages, tools=None, stream=False):
-    """
-    Send a chat request to the local Ollama server.
+def _groq_chat(messages, tools=None, stream=False):
+    """Call Groq's OpenAI-compatible Chat Completions API."""
+    api_key = os.getenv("GROQ_API_KEY")
+    if not api_key:
+        raise RuntimeError("GROQ_API_KEY is not set")
 
-    Args:
-        messages: list of {"role": "user"|"assistant"|"system", "content": str}
-        tools: optional list of tool definitions (used from Step 3 onward)
-        stream: if False, we get the full response in one shot (simplest
-                for a first test — we'll consider streaming later if needed)
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": messages,
+        "stream": stream,
+        "temperature": TEMPERATURE,
+    }
+    if tools:
+        payload["tools"] = tools
 
-    Returns:
-        The parsed JSON response from Ollama.
-    """
-    url = f"{OLLAMA_BASE_URL}/api/chat"
+    response = requests.post(
+        f"{GROQ_BASE_URL}/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=TIMEOUT_SECONDS,
+    )
+    if response.status_code != 200:
+        print("Groq returned an error. Response body:")
+        print(response.text)
+    response.raise_for_status()
+    data = response.json()
 
+    # Normalize Groq's OpenAI-compatible response to the shape used by agent_core.
+    message = data["choices"][0]["message"]
+    return {"message": message, "raw_response": data}
+
+
+def _ollama_chat(messages, tools=None, stream=False):
+    """Call the local Ollama Chat API."""
     payload = {
         "model": OLLAMA_MODEL,
         "messages": messages,
         "stream": stream,
-        "options": {
-            "temperature": OLLAMA_TEMPERATURE
-        }
+        "options": {"temperature": TEMPERATURE},
     }
-
     if tools:
         payload["tools"] = tools
 
-    response = requests.post(url, json=payload, timeout=OLLAMA_TIMEOUT_SECONDS)
-
+    response = requests.post(
+        f"{OLLAMA_BASE_URL}/api/chat",
+        json=payload,
+        timeout=TIMEOUT_SECONDS,
+    )
     if response.status_code != 200:
-        # Print the actual error body from Ollama before raising, so we can
-        # see *why* it failed (bad model name, malformed request, etc.)
-        # instead of just seeing a generic "500 Server Error".
         print("Ollama returned an error. Response body:")
         print(response.text)
-
     response.raise_for_status()
     return response.json()
 
 
+def chat(messages, tools=None, stream=False):
+    """Call the configured LLM backend.
+
+    If GROQ_API_KEY is present, Groq is used. Otherwise the existing Ollama
+    backend is used. Both return the response shape expected by agent_core.
+    """
+    if os.getenv("GROQ_API_KEY"):
+        return _groq_chat(messages, tools=tools, stream=stream)
+    return _ollama_chat(messages, tools=tools, stream=stream)
+
+
 if __name__ == "__main__":
-    # Quick manual test: python agent/ollama_client.py
     result = chat([
         {"role": "user", "content": "Reply with exactly one sentence confirming you are working."}
     ])
