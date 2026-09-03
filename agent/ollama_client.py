@@ -16,6 +16,7 @@ TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
 GROQ_MAX_RETRIES = int(os.getenv("GROQ_MAX_RETRIES", "4"))
 GROQ_MAX_COMPLETION_TOKENS = int(os.getenv("GROQ_MAX_COMPLETION_TOKENS", "600"))
+GROQ_REQUEST_DELAY_SECONDS = float(os.getenv("GROQ_REQUEST_DELAY_SECONDS", "2"))
 
 
 def _retry_delay(response, attempt):
@@ -44,7 +45,7 @@ def _retry_delay(response, attempt):
 
 
 def _groq_chat(messages, tools=None, stream=False):
-    """Call Groq's OpenAI-compatible Chat Completions API with 429 retries."""
+    """Call Groq's OpenAI-compatible Chat Completions API with pacing and 429 retries."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set")
@@ -60,8 +61,6 @@ def _groq_chat(messages, tools=None, stream=False):
         payload["tools"] = tools
         payload["parallel_tool_calls"] = False
         if len(tools) == 1:
-            # "required" avoids provider-specific validation issues with a
-            # forced function object while still guaranteeing a tool call.
             payload["tool_choice"] = "required"
 
     headers = {
@@ -70,6 +69,11 @@ def _groq_chat(messages, tools=None, stream=False):
     }
 
     for attempt in range(GROQ_MAX_RETRIES + 1):
+        if attempt > 0:
+            # Back off between attempts; successful sequential calls are also
+            # paced below to keep the free-tier TPM window under control.
+            pass
+
         response = requests.post(
             f"{GROQ_BASE_URL}/chat/completions",
             headers=headers,
@@ -97,6 +101,8 @@ def _groq_chat(messages, tools=None, stream=False):
 
         data = response.json()
         message = data["choices"][0]["message"]
+        if GROQ_REQUEST_DELAY_SECONDS > 0:
+            time.sleep(GROQ_REQUEST_DELAY_SECONDS)
         return {"message": message, "raw_response": data}
 
     raise RuntimeError("Groq request failed after retry attempts")
