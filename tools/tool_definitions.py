@@ -23,11 +23,7 @@ TOOLS = [
                     "severity": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "CRITICAL"]},
                     "cvss_score": {"type": "number", "description": "Estimated CVSS v3 base score, 0.0 to 10.0."},
                     "business_impact": {"type": "string", "description": "1-2 sentence plain-English impact."},
-                    "confidence_level": {
-                        "type": "string",
-                        "enum": ["LOW", "MEDIUM", "HIGH"],
-                        "description": "Confidence in the classification."
-                    }
+                    "confidence_level": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"], "description": "Confidence in the classification."}
                 },
                 "required": ["severity", "cvss_score", "business_impact", "confidence_level"]
             }
@@ -58,10 +54,11 @@ TOOLS = [
         "function": {
             "name": "generate_ticket",
             "description": (
-                "Generate a concise GitHub issue draft. Keep the title to 12 words or fewer and the body "
-                "to about 180 words or fewer. Include only summary, exact location, impact, suggested fix, "
-                "and key references. Avoid long code blocks, repetition, and filler so the JSON arguments "
-                "remain compact and valid."
+                "Generate a compact GitHub issue draft. Title must be 12 words or fewer. "
+                "body_markdown must be ONE SINGLE LINE of plain text, 100 words or fewer. "
+                "Do not use code fences, bullets, backticks, embedded JSON, newline characters, "
+                "or long examples. Include only summary, exact location, impact, suggested fix, "
+                "and key references. Never include secrets or default credentials."
             ),
             "parameters": {
                 "type": "object",
@@ -69,7 +66,7 @@ TOOLS = [
                     "title": {"type": "string", "description": "Short, specific title, 12 words or fewer."},
                     "body_markdown": {
                         "type": "string",
-                        "description": "Concise body, about 180 words or fewer; no long code blocks or repetition."
+                        "description": "ONE SINGLE LINE of plain text, 100 words or fewer. No newlines, code fences, bullets, backticks, or embedded JSON."
                     },
                     "priority": {"type": "string", "enum": ["P0", "P1", "P2", "P3"]},
                     "assignee_placeholder": {"type": "string", "description": "Ownership placeholder, e.g. '@security-team'."}
