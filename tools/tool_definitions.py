@@ -59,7 +59,10 @@ TOOLS = [
             "description": (
                 "Suggest a fix for a security finding. Return a description "
                 "of the fix, a corrected code snippet, and reference links "
-                "for further reading."
+                "for further reading. Never introduce a hardcoded secret, "
+                "password, token, API key, or unsafe default credential in "
+                "the remediation example. For credential findings, use a "
+                "secure secret source and fail safely when it is missing."
             ),
             "parameters": {
                 "type": "object",
