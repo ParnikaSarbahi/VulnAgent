@@ -1,0 +1,47 @@
+name: VulnAgent Groq End-to-End
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase-groq-github-runtime
+
+jobs:
+  end-to-end:
+    name: Run VulnAgent with Groq
+    runs-on: ubuntu-latest
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      GROQ_MODEL: openai/gpt-oss-20b
+      LLM_TIMEOUT_SECONDS: 120
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Verify Groq secret is configured
+        run: |
+          if [ -z "$GROQ_API_KEY" ]; then
+            echo "GROQ_API_KEY GitHub repository secret is not configured."
+            exit 1
+          fi
+
+      - name: Run VulnAgent end-to-end
+        run: |
+          python run_vulnagent.py \
+            --bandit-report samples/bandit_raw_output.json \
+            --output reports/triage_results.json
+
+      - name: Upload triage results
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnagent-triage-results
+          path: reports/triage_results.json

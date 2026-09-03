@@ -2,8 +2,8 @@
 agent_core.py
 
 Deterministic orchestration for VulnAgent's vulnerability triage pipeline.
-The Python layer controls workflow order while the local LLM supplies the
-security assessment and remediation content.
+The Python layer controls workflow order while the LLM supplies the security
+assessment and remediation content.
 """
 
 import json
@@ -16,6 +16,7 @@ from tools.tool_implementations import TOOL_DISPATCH
 
 MAX_ITERATIONS = 6
 CONFIDENCE_THRESHOLD = 0.5
+CONFIDENCE_LEVEL_VALUES = {"LOW": 0.3, "MEDIUM": 0.7, "HIGH": 1.0}
 
 SYSTEM_PROMPT = """You are a security triage agent. You will be asked to call specific tools one at a time. Base every field on the specific finding. cvss_score must be 0.0-10.0. confidence_level must be LOW, MEDIUM, or HIGH. business_impact must describe this finding specifically. Severity is about impact if exploited. Call only the tool you are asked to call."""
 
@@ -51,20 +52,70 @@ def _extract_fallback_tool_call(message, expected_tool_name):
     return None
 
 
+def _normalize_tool_arguments(raw_arguments):
+    """Normalize OpenAI/Groq string arguments and Ollama dict arguments."""
+    if isinstance(raw_arguments, dict):
+        return raw_arguments
+    if isinstance(raw_arguments, str):
+        try:
+            parsed = json.loads(raw_arguments)
+        except json.JSONDecodeError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
 def _call_single_tool(messages, tool_name, instruction=None):
     tool_def = next(t for t in TOOLS if t["function"]["name"] == tool_name)
     call_messages = messages + ([{"role": "user", "content": instruction}] if instruction else [])
     response = chat(call_messages, tools=[tool_def])
     message = response["message"]
-    tool_calls = message.get("tool_calls")
-    args = tool_calls[0]["function"]["arguments"] if tool_calls else _extract_fallback_tool_call(message, tool_name)
+    tool_calls = message.get("tool_calls") or []
+
+    tool_call_id = None
+    if tool_calls:
+        tool_call = tool_calls[0]
+        tool_call_id = tool_call.get("id")
+        raw_args = tool_call.get("function", {}).get("arguments")
+        args = _normalize_tool_arguments(raw_args)
+    else:
+        args = _extract_fallback_tool_call(message, tool_name)
+
     if args is None:
-        return None, message
+        return None, message, tool_call_id
+
     try:
         result = TOOL_DISPATCH[tool_name](**args)
     except TypeError as e:
         result = {"error": f"Bad arguments for {tool_name}: {e}"}
-    return {"tool": tool_name, "arguments": args, "result": result}, message
+
+    return {
+        "tool": tool_name,
+        "arguments": args,
+        "result": result,
+    }, message, tool_call_id
+
+
+def _append_tool_result(conversation, model_message, result, tool_call_id=None):
+    """Append a model tool-call message and the matching tool result."""
+    updated = conversation + [model_message]
+    tool_message = {"role": "tool", "content": json.dumps(result)}
+    if tool_call_id:
+        tool_message["tool_call_id"] = tool_call_id
+    return updated + [tool_message]
+
+
+def _confidence_value(classification):
+    """Convert either numeric confidence or schema confidence_level to a number."""
+    numeric = classification.get("confidence")
+    if numeric is not None:
+        try:
+            return float(numeric)
+        except (TypeError, ValueError):
+            pass
+
+    level = str(classification.get("confidence_level", "")).upper()
+    return CONFIDENCE_LEVEL_VALUES.get(level, 0.0)
 
 
 def triage_finding(finding):
@@ -75,26 +126,37 @@ def triage_finding(finding):
     tool_call_log = []
     escalated = False
 
-    call_record, model_message = _call_single_tool(base_messages, "classify_severity")
+    call_record, model_message, tool_call_id = _call_single_tool(
+        base_messages, "classify_severity"
+    )
     if call_record is None:
-        escalate_record, _ = _call_single_tool(
+        escalate_record, _, _ = _call_single_tool(
             base_messages + [{"role": "user", "content": "Escalate this finding: classification failed."}],
             "escalate_to_human",
         )
         if escalate_record:
             tool_call_log.append(escalate_record)
-        return {"finding_id": finding.id, "finding_title": finding.title, "finding_source": finding.source,
-                "tool_calls": tool_call_log, "escalated": True, "iterations": 1}
+        return {
+            "finding_id": finding.id,
+            "finding_title": finding.title,
+            "finding_source": finding.source,
+            "tool_calls": tool_call_log,
+            "escalated": True,
+            "iterations": 1,
+        }
 
     tool_call_log.append(call_record)
     classification = call_record["result"]
-    conversation = base_messages + [model_message, {"role": "tool", "content": json.dumps(classification)}]
+    conversation = _append_tool_result(
+        base_messages, model_message, classification, tool_call_id
+    )
     severity = str(classification.get("severity", "")).upper()
-    confidence = classification.get("confidence", 0.0)
+    confidence = _confidence_value(classification)
 
     if severity == "CRITICAL" or confidence < CONFIDENCE_THRESHOLD:
-        escalate_record, _ = _call_single_tool(
-            conversation, "escalate_to_human",
+        escalate_record, _, _ = _call_single_tool(
+            conversation,
+            "escalate_to_human",
             instruction="Now call escalate_to_human to escalate this specific finding, using the classification above as context.",
         )
         if escalate_record:
@@ -105,35 +167,72 @@ def triage_finding(finding):
                 context=f"Classification: {json.dumps(classification)}",
                 urgency="HIGH" if severity == "CRITICAL" else "MEDIUM",
             )
-            tool_call_log.append({"tool": "escalate_to_human", "arguments": "FALLBACK -- model failed to call this tool", "result": fallback_result})
+            tool_call_log.append({
+                "tool": "escalate_to_human",
+                "arguments": "FALLBACK -- model failed to call this tool",
+                "result": fallback_result,
+            })
         escalated = True
         iterations = 2
     else:
-        remediation_record, remediation_message = _call_single_tool(
-            conversation, "suggest_remediation",
+        remediation_record, remediation_message, remediation_tool_call_id = _call_single_tool(
+            conversation,
+            "suggest_remediation",
             instruction="Now call suggest_remediation to provide a specific code-level fix for this finding.",
         )
         if remediation_record is None:
-            remediation_record = {"tool": "suggest_remediation", "arguments": "FALLBACK -- model failed to call this tool",
-                                  "result": {"fix_description": "Automated remediation generation failed for this finding. Manual review required.", "code_snippet": "", "reference_links": []}}
+            remediation_record = {
+                "tool": "suggest_remediation",
+                "arguments": "FALLBACK -- model failed to call this tool",
+                "result": {
+                    "fix_description": "Automated remediation generation failed for this finding. Manual review required.",
+                    "code_snippet": "",
+                    "reference_links": [],
+                },
+            }
             tool_call_log.append(remediation_record)
-            conversation = conversation + [{"role": "user", "content": "Now generate a GitHub issue ticket for this finding."}]
+            conversation = conversation + [
+                {
+                    "role": "user",
+                    "content": "Now generate a GitHub issue ticket for this finding.",
+                }
+            ]
         else:
             tool_call_log.append(remediation_record)
-            conversation = conversation + [remediation_message, {"role": "tool", "content": json.dumps(remediation_record["result"])}]
+            conversation = _append_tool_result(
+                conversation,
+                remediation_message,
+                remediation_record["result"],
+                remediation_tool_call_id,
+            )
 
-        ticket_record, _ = _call_single_tool(
-            conversation, "generate_ticket",
+        ticket_record, _, _ = _call_single_tool(
+            conversation,
+            "generate_ticket",
             instruction="Now call generate_ticket to draft a GitHub issue for this finding.",
         )
         if ticket_record is None:
-            ticket_record = {"tool": "generate_ticket", "arguments": "FALLBACK -- model failed to call this tool",
-                             "result": {"title": f"[NEEDS TRIAGE] {finding.title}", "body_markdown": f"Automated ticket generation failed. Finding: {finding.description}", "priority": "P2", "assignee_placeholder": "@security-team"}}
+            ticket_record = {
+                "tool": "generate_ticket",
+                "arguments": "FALLBACK -- model failed to call this tool",
+                "result": {
+                    "title": f"[NEEDS TRIAGE] {finding.title}",
+                    "body_markdown": f"Automated ticket generation failed. Finding: {finding.description}",
+                    "priority": "P2",
+                    "assignee_placeholder": "@security-team",
+                },
+            }
         tool_call_log.append(ticket_record)
         iterations = 3
 
-    return {"finding_id": finding.id, "finding_title": finding.title, "finding_source": finding.source,
-            "tool_calls": tool_call_log, "escalated": escalated, "iterations": iterations}
+    return {
+        "finding_id": finding.id,
+        "finding_title": finding.title,
+        "finding_source": finding.source,
+        "tool_calls": tool_call_log,
+        "escalated": escalated,
+        "iterations": iterations,
+    }
 
 
 def triage_all(findings, save_incrementally_to=None):
@@ -150,12 +249,22 @@ def triage_all(findings, save_incrementally_to=None):
         try:
             result = triage_finding(finding)
             status = "ESCALATED" if result["escalated"] else "auto-triaged"
-            print(f"  -> {status} in {result['iterations']} iteration(s), {len(result['tool_calls'])} tool call(s)")
+            print(
+                f"  -> {status} in {result['iterations']} iteration(s), "
+                f"{len(result['tool_calls'])} tool call(s)"
+            )
         except Exception as e:
             print(f"  -> ERROR: {e}. Escalating this finding and continuing.")
-            result = {"finding_id": finding.id, "finding_title": finding.title, "finding_source": finding.source,
-                      "tool_calls": [{"tool": "pipeline_error", "arguments": None, "result": {"error": str(e)}}],
-                      "escalated": True, "iterations": 0}
+            result = {
+                "finding_id": finding.id,
+                "finding_title": finding.title,
+                "finding_source": finding.source,
+                "tool_calls": [
+                    {"tool": "pipeline_error", "arguments": None, "result": {"error": str(e)}}
+                ],
+                "escalated": True,
+                "iterations": 0,
+            }
         results.append(result)
         if save_incrementally_to:
             directory = os.path.dirname(save_incrementally_to)
