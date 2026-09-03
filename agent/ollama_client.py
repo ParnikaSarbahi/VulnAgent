@@ -1,6 +1,8 @@
 """LLM client with Groq API support and optional Ollama fallback."""
 
 import os
+import time
+
 import requests
 from dotenv import load_dotenv
 
@@ -12,16 +14,37 @@ GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 TIMEOUT_SECONDS = int(os.getenv("LLM_TIMEOUT_SECONDS", "120"))
+GROQ_MAX_RETRIES = int(os.getenv("GROQ_MAX_RETRIES", "4"))
+GROQ_MAX_COMPLETION_TOKENS = int(os.getenv("GROQ_MAX_COMPLETION_TOKENS", "600"))
+
+
+def _retry_delay(response, attempt):
+    """Return a bounded delay using Groq's rate-limit headers when available."""
+    retry_after = response.headers.get("retry-after")
+    if retry_after:
+        try:
+            return min(float(retry_after), 60.0)
+        except ValueError:
+            pass
+
+    reset_tokens = response.headers.get("x-ratelimit-reset-tokens")
+    if reset_tokens:
+        value = reset_tokens.strip().lower()
+        try:
+            if value.endswith("ms"):
+                return min(float(value[:-2]) / 1000.0, 60.0)
+            if value.endswith("s"):
+                return min(float(value[:-1]), 60.0)
+            if value.endswith("m"):
+                return min(float(value[:-1]) * 60.0, 60.0)
+        except ValueError:
+            pass
+
+    return min(2.0 ** attempt, 30.0)
 
 
 def _groq_chat(messages, tools=None, stream=False):
-    """Call Groq's OpenAI-compatible Chat Completions API.
-
-    VulnAgent sends one tool definition at a time. Groq's GPT-OSS 20B does
-    not support parallel tool use, so disable parallel calls explicitly.
-    When a single tool is supplied, force that exact function so the
-    deterministic Python orchestration receives the expected tool call.
-    """
+    """Call Groq's OpenAI-compatible Chat Completions API with 429 retries."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
         raise RuntimeError("GROQ_API_KEY is not set")
@@ -31,30 +54,47 @@ def _groq_chat(messages, tools=None, stream=False):
         "messages": messages,
         "stream": stream,
         "temperature": TEMPERATURE,
+        "max_completion_tokens": GROQ_MAX_COMPLETION_TOKENS,
     }
     if tools:
         payload["tools"] = tools
         payload["parallel_tool_calls"] = False
         if len(tools) == 1:
-            payload["tool_choice"] = {
-                "type": "function",
-                "function": {"name": tools[0]["function"]["name"]},
-            }
+            # "required" avoids provider-specific validation issues with a
+            # forced function object while still guaranteeing a tool call.
+            payload["tool_choice"] = "required"
 
-    response = requests.post(
-        f"{GROQ_BASE_URL}/chat/completions",
-        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=TIMEOUT_SECONDS,
-    )
-    if response.status_code != 200:
-        print("Groq returned an error. Response body:")
-        print(response.text)
-    response.raise_for_status()
-    data = response.json()
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
 
-    message = data["choices"][0]["message"]
-    return {"message": message, "raw_response": data}
+    for attempt in range(GROQ_MAX_RETRIES + 1):
+        response = requests.post(
+            f"{GROQ_BASE_URL}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=TIMEOUT_SECONDS,
+        )
+
+        if response.status_code == 429 and attempt < GROQ_MAX_RETRIES:
+            delay = _retry_delay(response, attempt)
+            print(
+                f"Groq rate limit reached (attempt {attempt + 1}/{GROQ_MAX_RETRIES}). "
+                f"Retrying in {delay:.1f}s."
+            )
+            time.sleep(delay)
+            continue
+
+        if response.status_code != 200:
+            print("Groq returned an error. Response body:")
+            print(response.text)
+        response.raise_for_status()
+        data = response.json()
+        message = data["choices"][0]["message"]
+        return {"message": message, "raw_response": data}
+
+    raise RuntimeError("Groq request failed after retry attempts")
 
 
 def _ollama_chat(messages, tools=None, stream=False):
