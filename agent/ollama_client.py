@@ -89,7 +89,12 @@ def _groq_chat(messages, tools=None, stream=False):
         if response.status_code != 200:
             print("Groq returned an error. Response body:")
             print(response.text)
-        response.raise_for_status()
+            request_id = response.headers.get("x-request-id") or response.headers.get("x-groq-request-id")
+            request_suffix = f"; request_id={request_id}" if request_id else ""
+            raise RuntimeError(
+                f"Groq HTTP {response.status_code}: {response.text}{request_suffix}"
+            )
+
         data = response.json()
         message = data["choices"][0]["message"]
         return {"message": message, "raw_response": data}
